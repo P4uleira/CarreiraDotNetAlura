@@ -2,6 +2,8 @@
 using FilmesApi.Data;
 using FilmesApi.Data.Dtos;
 using FilmesApi.Models;
+using FilmesApi.Profiles;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FilmesApi.Controllers;
@@ -29,9 +31,9 @@ public class FilmeController : Controller
     }
 
     [HttpGet]
-    public IEnumerable<Filme> RecuperaFilmes([FromQuery] int skip = 0 , [FromQuery] int take = 50)
+    public IEnumerable<ReadFilmeDto> RecuperaFilmes([FromQuery] int skip = 0 , [FromQuery] int take = 50)
     {
-        return _context.Filmes.Skip(50).Take(10);
+        return _mapper.Map<List<ReadFilmeDto>>(_context.Filmes.Skip(skip).Take(take));
     }
 
     [HttpGet("{id}")]
@@ -39,6 +41,54 @@ public class FilmeController : Controller
     {
         var filme = _context.Filmes.FirstOrDefault(filme => filme.Id == id);
         if (filme == null) return NotFound();
-        return Ok();
+
+        var filmeDto = _mapper.Map<ReadFilmeDto>(filme);
+        return Ok(filmeDto);
+    }
+
+    [HttpPut("{id}")]
+    public IActionResult AtualizaFilme(int id, [FromBody] UpdateFilmeDto filmeDto)
+    {
+        var filme = _context.Filmes.FirstOrDefault(filme => filme.Id == id);
+
+        if(filme == null) return NotFound();
+        _mapper.Map(filmeDto, filme);
+        _context.SaveChanges();
+
+        return NoContent();
+    }
+
+    [HttpPatch("{id}")]
+    public IActionResult AtualizaFilmParcial(int id, JsonPatchDocument<UpdateFilmeDto> patch)
+    {
+        var filme = _context.Filmes.FirstOrDefault(filme => filme.Id == id);
+
+        if (filme == null) return NotFound();
+
+        var filmeParaAtualizar = _mapper.Map<UpdateFilmeDto>(filme);
+
+        patch.ApplyTo(filmeParaAtualizar, ModelState);
+
+        if (!TryValidateModel(filmeParaAtualizar))
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        _mapper.Map(filmeParaAtualizar, filme);
+        _context.SaveChanges();
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public IActionResult DeletFilme(int id)
+    {
+        var filme = _context.Filmes.FirstOrDefault(filme => filme.Id == id);
+        if (filme == null) return NotFound();
+
+        _context.Remove(filme);
+        _context.SaveChanges();
+
+        return NoContent();
     }
 }
